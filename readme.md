@@ -1,8 +1,8 @@
-# Message Encryption and Decryption Tool
+# <ins>Message Encryption and Decryption Tool</ins>
 
 This is a Python script that provides a simple menu-driven interface for encrypting and decrypting messages using a combination of Caesar Cipher, Base64 encoding, and XOR encryption.
 
-## Features
+## **_Features_**
 
 Encrypts messages using a combination of Caesar Cipher, Base64 encoding, and XOR encryption
 Decrypts messages using the same encryption keys
@@ -10,7 +10,7 @@ Generates random encryption keys for each encryption operation
 Copies encrypted messages to the clipboard for easy sharing
 Supports hexadecimal input for decryption
 
-## Usage
+## **_Usage_**
 
 Run the script using python encrypt_decrypt.py
 Choose an option from the menu:
@@ -22,21 +22,21 @@ Follow the prompts to enter the message to encrypt or decrypt, and the encryptio
 ## Encryption Process
 
 Replace spaces with underscores
-Shift each character by 5 positions (Caesar Cipher)
-Base64 encode the message
-Add symbols (#, %, $) to the encoded message
-XOR encrypt the message with a random key
-Perform an additional XOR encryption with the same key
+Shift each character by 5 positions _(Caesar Cipher)_
+_Base64_ encode the message
+Add symbols **(#, %, $)** to the encoded message
+_XOR_ encrypt the message with a random key
+Perform an additional _XOR_ encryption with the same key
 
 ## Decryption Process
 
 Remove symbols from the encrypted message
-XOR decrypt the message with the encryption key
-Base64 decode the message
-Reverse the Caesar Cipher shift
+_XOR_ decrypt the message with the encryption key
+_Base64_ decode the message
+Reverse the _Caesar Cipher_ shift
 Replace underscores with spaces
 
-## Requirements
+## **Requirements**
 
 Python 3.x
 pyperclip library for clipboard operations
