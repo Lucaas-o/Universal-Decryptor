@@ -1,0 +1,2 @@
+[console_scripts]
+encryptor-tool = main:main
