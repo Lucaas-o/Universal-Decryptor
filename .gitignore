@@ -1,2 +1,4 @@
-
-Encryption_Decryption.rar
+__pycache__/
+*.pyc
+*.log
+decryption_results.txt
