@@ -1,4 +1,5 @@
 import base64
+import os
 import string
 import random
 from colorama import init, Fore, Style
@@ -27,6 +28,26 @@ try:
 except enchant.errors.DictNotFoundError:
     USE_ENCHANT = False
     print(f"{Fore.YELLOW}Enchant library not found. Using fallback word list.{Style.RESET_ALL}")
+
+# Global list to store ALL decryption results
+all_results_list = []
+
+# Save all decryption attempts
+def save_all_decryptions():
+    """Saves all decryption attempts to decryption_log.txt"""
+    filename = "decryption_log.txt"
+    
+    with open(filename, "a", encoding="utf-8") as file:
+        file.write("\n=== New Decryption Session ===\n")
+        for result in all_results_list:  # Save EVERYTHING from the global list
+            text, score, method, confidence = result
+            file.write(f"Method: {method}\n")
+            file.write(f"Confidence: {confidence:.2f}%\n")
+            file.write(f"Score: {score:.2f}\n")
+            file.write(f"Decrypted Text: {text}\n")
+            file.write("-" * 40 + "\n")
+
+    print(f"{Fore.GREEN}All decryption attempts saved to {filename}{Style.RESET_ALL}")
 
 # English letter frequency
 ENGLISH_FREQ = {
@@ -64,58 +85,63 @@ BACON_DICT = {
     'BBBBA': '5', 'BBBBB': '6'
 }
 
+def save_best_decryption(best_result):
+    """Sauvegarde la meilleure traduction dans decrypted.txt"""
+    text, score, method, confidence = best_result
+    filename = "decrypted.txt"
+
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(f"Decryption Method: {method}\n")
+        file.write(f"Confidence: {confidence:.2f}%\n")
+        file.write(f"Score: {score:.2f}\n")
+        file.write(f"Decrypted Text:\n{text}\n")
+
+    print(f"{Fore.GREEN}Best decryption saved to {filename}{Style.RESET_ALL}")
+
 # Scoring function
 def score_text(text):
     if not text or len(text) < 3 or not any(c.isalpha() for c in text):
         return -100000
     
     text_lower = text.lower()
-    alpha_count = sum(c.isalpha() for c in text)
-    if alpha_count < 3:
-        return -100000
     
-    # Frequency score
-    freq = {}
-    for char in text_lower:
-        if char in string.ascii_lowercase:
-            freq[char] = freq.get(char, 0) + 1
-    score = 0
-    for char, expected in ENGLISH_FREQ.items():
-        actual = (freq.get(char, 0) / alpha_count) * 100
-        score += min(30, expected / (abs(expected - actual) + 1))
-    
-    # Word validation with NLTK and optional Enchant
+    # Word validation
     words = word_tokenize(text_lower)
     valid_words = 0
     for w in words:
-        if len(w) > 2 and (
-            w in COMMON_WORDS or
-            (USE_ENCHANT and DICT.check(w))
-        ):
-            valid_words += 1
-    score += valid_words * 1000  # High bonus per valid word
-    if valid_words > 0:
-        score += 1000  # Bonus for any valid English content
-    
-    # Penalties
-    if not text.isascii() or not all(c.isprintable() for c in text):
-        score -= 100000
-    digit_ratio = sum(c.isdigit() for c in text) / len(text)
-    if digit_ratio > 0.6:
-        score -= 5000
-    if not words or (len(text) < 5 and valid_words == 0):
-        score -= 10000
-    
+        if len(w) > 2:
+            try:
+                if w in COMMON_WORDS or (USE_ENCHANT and DICT.check(w)):
+                    valid_words += 1
+            except Exception:
+                continue  # Ignore enchant errors
+
+    score = valid_words * 1000  # Boost score for valid words
+    if "XOR" in text:
+        score -= 1000  # Reduce score so it's less dominant
+
     return score
 
 # Confidence calculation function
 def compute_confidence(text):
     words = word_tokenize(text.lower())
-    valid_words = sum(1 for w in words if len(w) > 2 and (w in COMMON_WORDS or (USE_ENCHANT and DICT.check(w))))
+    valid_words = 0
     total_words = len([w for w in words if len(w) > 2])
+
+    for w in words:
+        if len(w) > 2:
+            try:
+                if w in COMMON_WORDS or (USE_ENCHANT and DICT.check(w)):
+                    valid_words += 1
+            except Exception:
+                continue  # Ignore enchant errors
+
     if total_words == 0:
-        return 0
-    return (valid_words / total_words) * 100
+        return 0  # No valid words = 0% confidence
+
+    confidence = (valid_words / total_words) * 100
+    return min(confidence, 100)  # Ensure it never exceeds 100%
+
 
 # Caesar Cipher decryption
 def caesar_decrypt(ciphertext):
@@ -205,42 +231,42 @@ def rail_fence_decrypt(ciphertext):
             results.append((result, score, f"Rail Fence (rails {rails})"))
     return sorted(results, key=lambda x: x[1], reverse=True)
 
+def is_hex(s):
+    return bool(re.fullmatch(r'[0-9A-Fa-f]+', s)) and len(s) % 2 == 0
+
 # XOR decryption with key guessing
 def xor_decrypt(ciphertext):
     results = []
+    
     try:
-        cipher_bytes = bytes.fromhex(ciphertext) if all(c in '0123456789abcdefABCDEF' for c in ciphertext) else ciphertext.encode()
+        cipher_bytes = bytes.fromhex(ciphertext) if is_hex(ciphertext) else ciphertext.encode()
     except ValueError:
-        cipher_bytes = ciphertext.encode()
+        cipher_bytes = ciphertext.encode()  # Fallback in case of bad hex input
     
     common_keys = ['key', 'secret', 'password', 'test', 'code', 'encrypt', 'decrypt', 'flag', 'crypto']
+    
     for key in common_keys:
         key_bytes = key.encode()
         result = bytearray(c ^ key_bytes[i % len(key_bytes)] for i, c in enumerate(cipher_bytes))
         try:
-            decoded = result.decode('utf-8', errors='ignore')
+            decoded = result.decode('utf-8', errors='ignore')  # Avoid crashing
             score = score_text(decoded)
             if score > -5000:
                 results.append((decoded, score, f"XOR (key '{key}')"))
         except UnicodeDecodeError:
-            continue
-    
-    # Attempt single-byte XOR decryption
-    for key in range(256):
-        result = bytearray(c ^ key for c in cipher_bytes)
-        try:
-            decoded = result.decode('utf-8', errors='ignore')
-            score = score_text(decoded)
-            if score > -5000:
-                results.append((decoded, score, f"XOR (single-byte key '{chr(key) if chr(key).isprintable() else hex(key)}')"))
-        except UnicodeDecodeError:
-            continue
+            continue  # Skip invalid results
     
     return sorted(results, key=lambda x: x[1], reverse=True)
 
+def is_base64(s):
+    try:
+        return base64.b64encode(base64.b64decode(s)).decode() == s.strip()
+    except Exception:
+        return False
+
 # Base64 decryption
 def base64_decrypt(ciphertext):
-    if not re.match(r'^[A-Za-z0-9+/=]+$', ciphertext):
+    if not is_base64(ciphertext):
         return []
     try:
         decoded = base64.b64decode(ciphertext).decode('utf-8', errors='ignore')
@@ -251,13 +277,27 @@ def base64_decrypt(ciphertext):
 
 # Base32 decryption
 def base32_decrypt(ciphertext):
+    # Normalize case (Base32 should always be uppercase)
+    ciphertext = ciphertext.strip().upper()
+
+    # Ensure valid characters
     if not re.match(r'^[A-Z2-7=]+$', ciphertext):
         return []
+    
+    # Fix missing padding
+    missing_padding = len(ciphertext) % 8
+    if missing_padding:
+        ciphertext += "=" * (8 - missing_padding)
+
     try:
-        decoded = base64.b32decode(ciphertext).decode('utf-8', errors='ignore')
+        decoded_bytes = base64.b32decode(ciphertext, casefold=True)  # casefold=True allows mixed case
+        decoded = decoded_bytes.decode('utf-8', errors='ignore')
+
         score = score_text(decoded)
+
+        # Only return if it produces a valid result
         return [(decoded, score, "Base32")] if score > -5000 else []
-    except Exception:
+    except (binascii.Error, ValueError):  # Catch padding & decoding errors
         return []
 
 # Binary decryption
@@ -398,11 +438,25 @@ def automated_decrypt(ciphertext):
     
     # Define decryptors
     decryptors = [
-        caesar_decrypt, rot13_decrypt, atbash_decrypt, vigenere_decrypt,
-        rail_fence_decrypt, xor_decrypt, base64_decrypt, base32_decrypt,
-        binary_decrypt, hex_decrypt, morse_decrypt, bacon_decrypt,
-        substitution_decrypt, ascii_shift_decrypt, url_decode, hash_detect
-    ]
+    base64_decrypt,
+    base32_decrypt,
+    caesar_decrypt,
+    rot13_decrypt,
+    atbash_decrypt,
+    vigenere_decrypt,
+    rail_fence_decrypt,
+    binary_decrypt,
+    hex_decrypt,
+    morse_decrypt,
+    bacon_decrypt,
+    substitution_decrypt,
+    ascii_shift_decrypt,
+    url_decode,
+    hash_detect,
+    xor_decrypt
+
+]
+
     
     # Collect results from all decryptors
     for decryptor in decryptors:
@@ -508,28 +562,35 @@ def print_results(results, show_all=False):
 # Main menu
 def main():
     print(f"{Fore.YELLOW}=== Universal Decryption Tool ==={Style.RESET_ALL}")
+
     while True:
         print(f"\n{Fore.MAGENTA}Menu:{Style.RESET_ALL}")
         print("1. Automated Decryption (try everything)")
         print("2. Manual Decryption (specify method)")
         print("3. Exit")
-        
-        choice = input(f"{Fore.YELLOW}Enter choice (1/2/3): {Style.RESET_ALL}").strip()
-        
-        if choice == '1':
+        print("4. Save best decryption")
+        print("5. Save all decryption attempts")
+
+        choice = input(f"{Fore.YELLOW}Enter choice (1/2/3/4/5): {Style.RESET_ALL}").strip()
+
+        if choice == '1':  # Automated Decryption
             ciphertext = input(f"{Fore.YELLOW}Enter text to decrypt: {Style.RESET_ALL}").strip()
             if not ciphertext:
                 print(f"{Fore.RED}Input cannot be empty.{Style.RESET_ALL}")
                 continue
+
             print(f"{Fore.GREEN}Analyzing...{Style.RESET_ALL}")
-            results = automated_decrypt(ciphertext)
+            results = automated_decrypt(ciphertext)  # Perform decryption
             print_results(results)
+
+            all_results_list.extend(results)  # ✅ Store ALL results in the global list
         
-        elif choice == '2':
+        elif choice == '2':  # Manual Decryption
             ciphertext = input(f"{Fore.YELLOW}Enter text to decrypt: {Style.RESET_ALL}").strip()
             if not ciphertext:
                 print(f"{Fore.RED}Input cannot be empty.{Style.RESET_ALL}")
                 continue
+
             print(f"{Fore.MAGENTA}Methods:{Style.RESET_ALL}")
             print("1. Caesar Cipher (requires shift)")
             print("2. XOR (requires key)")
@@ -537,19 +598,39 @@ def main():
             print("4. Base32 (no key needed)")
             print("5. Hexadecimal (no key needed)")
             print("6. Morse Code (no key needed)")
+    
             method = input(f"{Fore.YELLOW}Enter method (1-6): {Style.RESET_ALL}").strip()
             key = None
-            if method in {'1', '2'}:
+
+            if method in {'1', '2'}:  
                 key = input(f"{Fore.YELLOW}Enter key/shift: {Style.RESET_ALL}").strip()
+    
             result = manual_decrypt(ciphertext, method, key)
             print(f"{Fore.GREEN}Result:{Style.RESET_ALL} {result}")
+
+            score = score_text(result)
+            confidence = compute_confidence(result)
+            all_results_list.append((result, score, method, confidence))  # ✅ Store result in global list
+
+        elif choice == '4':  # Save best decryption
+            if all_results_list:
+                best_result = max(all_results_list, key=lambda x: x[1])  
+                save_best_decryption(best_result)
+            else:
+                print(f"{Fore.RED}No previous decryption found. Run option 1 or 2 first.{Style.RESET_ALL}")
         
+        elif choice == '5':  # Save all decryption attempts
+            if all_results_list:
+                save_all_decryptions()
+            else:
+                print(f"{Fore.RED}No previous decryption found. Run option 1 or 2 first.{Style.RESET_ALL}")
+
         elif choice == '3':
             print(f"{Fore.YELLOW}Exiting...{Style.RESET_ALL}")
             break
         
         else:
-            print(f"{Fore.RED}Invalid choice. Please enter 1, 2, or 3.{Style.RESET_ALL}")
+            print(f"{Fore.RED}Invalid choice. Please enter 1, 2, 3, 4, or 5.{Style.RESET_ALL}")
 
 if __name__ == "__main__":
     main()

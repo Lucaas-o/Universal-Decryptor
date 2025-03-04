@@ -1,4 +1,4 @@
 __pycache__/
 *.pyc
 *.log
-decryption_results.txt
+decryption_log.txt
