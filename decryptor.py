@@ -9,7 +9,7 @@ from src.utils.io import save_best_decryption, save_all_decryptions
 from src.engine import automated_decrypt
 
 # Import manual decryptors
-from src.ciphers.classical import caesar_decrypt, rot13_decrypt, atbash_decrypt, rail_fence_decrypt, affine_decrypt
+from src.ciphers.classical import caesar_decrypt, rot13_decrypt, atbash_decrypt, rail_fence_decrypt, affine_decrypt, reverse_decrypt, columnar_decrypt
 from src.ciphers.encoding import base64_decrypt, base32_decrypt, hex_decrypt, binary_decrypt, url_decode, base85_decrypt, ascii85_decrypt
 from src.ciphers.esoteric import morse_decrypt, bacon_decrypt
 from src.ciphers.modern import xor_decrypt
@@ -21,14 +21,49 @@ init_nlp()
 
 all_results_list = []
 
-def print_results(results, show_all=False):
-    if not results:
-        print(f"{Fore.RED}No plausible decryption found.{Style.RESET_ALL}")
-        return
+def run_automated(ciphertext):
+    # Print a distinct start message
+    print(f"\n{Fore.CYAN}🚀 Initializing Universal Analysis Engine...{Style.RESET_ALL}")
     
-    print(f"{Fore.GREEN}Top decryption results:{Style.RESET_ALL}")
-    for i, (text, score, method, confidence) in enumerate(results, 1):
-        print(f"{i}. {Fore.CYAN}{text}{Style.RESET_ALL} (Score: {score:.2f}, Confidence: {confidence:.2f}%, Method: {method})")
+    # We could add a spinner thread here if we wanted to be fancy, 
+    # but for now we'll just use better status prints.
+    print(f"{Fore.BLUE}🔍 Scanning for 17+ common patterns and encodings...{Style.RESET_ALL}")
+    
+    results = automated_decrypt(ciphertext)
+    
+    # Check if a deep search was performed (detect multi-layer in methods)
+    deep_search_found = any("->" in r[2] for r in results)
+    
+    if not results:
+        print(f"{Fore.RED}No valid decryption methods found.{Style.RESET_ALL}")
+        return
+
+    # Visual Banner for the #1 Best Guess
+    best_text, best_score, best_method, best_conf = results[0]
+    
+    print("\n" + "="*60)
+    print(f"{Fore.GREEN}{Style.BRIGHT}🏆 TOP RESULT FOUND{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}Method:  {Fore.YELLOW}{best_method}{Style.RESET_ALL}")
+    
+    conf_color = Fore.GREEN if best_conf > 70 else Fore.YELLOW if best_conf > 30 else Fore.RED
+    print(f"{Fore.WHITE}Confidence: {conf_color}{best_conf:.2f}%{Style.RESET_ALL}")
+    
+    if deep_search_found:
+        print(f"{Fore.MAGENTA}✨ Multi-layer Deep Search was applied!{Style.RESET_ALL}")
+        
+    print("-" * 30)
+    print(f"{Fore.CYAN}{Style.BRIGHT}{best_text}{Style.RESET_ALL}")
+    print("="*60 + "\n")
+
+    print(f"{Fore.WHITE}Other potential candidates:{Style.RESET_ALL}")
+    for i, (text, score, method, conf) in enumerate(results[1:], 2):
+        c_color = Fore.GREEN if conf > 70 else Fore.YELLOW if conf > 30 else Fore.WHITE
+        # Shorten text for preview
+        preview = (text[:60] + '...') if len(text) > 60 else text
+        preview = preview.replace('\n', ' ')
+        print(f"{i}. {Fore.YELLOW}[{method}]{Style.RESET_ALL} (Conf: {c_color}{conf:5.2f}%{Style.RESET_ALL}) -> {preview}")
+    print()
+    return results
 
 def manual_menu():
     print(f"\n{Fore.MAGENTA}Manual Decryption Methods:{Style.RESET_ALL}")
@@ -48,12 +83,14 @@ def manual_menu():
         ("13", "Hill Cipher (2x2)", ["a", "b", "c", "d"]),
         ("14", "Base85", []),
         ("15", "Ascii85", []),
+        ("16", "Reverse Cipher", []),
+        ("17", "Columnar (Regular)", ["width"]),
     ]
     
     for idx, name, args in methods:
         print(f"{idx}. {name}")
     
-    choice = input(f"{Fore.YELLOW}Enter method (1-15): {Style.RESET_ALL}").strip()
+    choice = input(f"{Fore.YELLOW}Enter method (1-17): {Style.RESET_ALL}").strip()
     ciphertext = input(f"{Fore.YELLOW}Enter text to decrypt: {Style.RESET_ALL}").strip()
     
     result = None
@@ -87,6 +124,10 @@ def manual_menu():
         result = hill_decrypt_2x2(ciphertext, int(a), int(b), int(c), int(d))[0]
     elif choice == '14': result = base85_decrypt(ciphertext)[0]
     elif choice == '15': result = ascii85_decrypt(ciphertext)[0]
+    elif choice == '16': result = reverse_decrypt(ciphertext)[0]
+    elif choice == '17':
+        width = input("Enter width: ")
+        result = columnar_decrypt(ciphertext, width)[0]
 
     if result:
         text, score, method = result
@@ -101,9 +142,7 @@ def main():
     args = parser.parse_args()
 
     if args.auto:
-        print(f"{Fore.GREEN}Analyzing...{Style.RESET_ALL}")
-        results = automated_decrypt(args.auto)
-        print_results(results)
+        run_automated(args.auto)
         return
 
     if args.manual:
@@ -125,10 +164,8 @@ def main():
         if choice == '1':
             ciphertext = input(f"{Fore.YELLOW}Enter text to decrypt: {Style.RESET_ALL}").strip()
             if ciphertext:
-                print(f"{Fore.GREEN}Analyzing...{Style.RESET_ALL}")
-                results = automated_decrypt(ciphertext)
-                print_results(results)
-                all_results_list.extend(results)
+                res = run_automated(ciphertext)
+                if res: all_results_list.extend(res)
         elif choice == '2':
             manual_menu()
         elif choice == '3':

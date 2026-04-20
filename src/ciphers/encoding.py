@@ -10,7 +10,12 @@ def is_hex(s):
 def is_base64(s):
     try:
         if not s.strip(): return False
-        return base64.b64encode(base64.b64decode(s)).decode() == s.strip()
+        # Remove whitespace for validation
+        clean_s = re.sub(r'\s+', '', s.strip())
+        # Use a regex to check alphabet first
+        if not re.fullmatch(r'[A-Za-z0-9+/]*={0,2}', clean_s):
+            return False
+        return len(clean_s) % 4 == 0
     except Exception:
         return False
 

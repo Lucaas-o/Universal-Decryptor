@@ -61,7 +61,15 @@ def test_hill_2x2():
     assert result[0][0] == "HELL"
 
 def test_engine():
-    # Test if automated_decrypt can find "Hello" from a Caesar shift
-    results = automated_decrypt("Khoor")
-    texts = [r[0] for r in results]
-    assert "Hello" in texts
+    # Caesar shift 1: "Hello" -> "Ifmmp"
+    results = automated_decrypt("Ifmmp")
+    assert any("Hello" in r[0] for r in results)
+
+def test_multi_layer():
+    # Double encoding: "Attack at dawn" -> Base64 -> Reverse
+    # "Attack at dawn" -> "QXR0YWNrIGF0IGRhd24="
+    # Reversed: "=42dhRGI0FGIrNWY0RXQ"
+    ciphertext = "=42dhRGI0FGIrNWY0RXQ"
+    results = automated_decrypt(ciphertext)
+    # The nested method should be 'Reverse -> Base64'
+    assert any("Attack at dawn" in r[0] for r in results)

@@ -39,14 +39,20 @@ def init_nlp():
     })
 
 def is_word(word):
-    word = word.lower()
+    # Only check words that are predominantly alphabetic to avoid Enchant/Glib UTF-8 assertions
+    # and improve performance by filtering out punctuation-heavy tokens.
+    word = ''.join(filter(str.isalpha, word.lower()))
+    
     if len(word) <= 2:
         return False
+        
     if word in COMMON_WORDS:
         return True
+        
     if USE_ENCHANT and DICT:
         try:
             return DICT.check(word)
         except Exception:
+            # Silently handle cases where enchant might still fail or error out
             return False
     return False

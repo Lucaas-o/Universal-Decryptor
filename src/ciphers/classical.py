@@ -143,3 +143,52 @@ def affine_decrypt(ciphertext, a=None, b=None):
             if score > 0: # Be stricter with affine since it has many permutations
                 results.append((result, score, f"Affine (a={a}, b={b})"))
     return sorted(results, key=lambda x: x[1], reverse=True)[:5]
+
+def reverse_decrypt(ciphertext):
+    result = ciphertext[::-1]
+    score = score_text(result)
+    return [(result, score, "Reverse")] if score > -5000 else []
+
+def columnar_decrypt(ciphertext, width=None):
+    # Remove non-alpha for the grid calculation if needed, but transposition 
+    # usually keeps spaces. We'll strip for simplicity in brute-forcing.
+    data = ciphertext.strip()
+    n = len(data)
+    
+    def decrypt_with_width(w):
+        rows = (n + w - 1) // w
+        # In a columnar transposition (regular), 
+        # width 'w' means we have 'w' columns.
+        # Decrypting means reading the 'ciphertext' as if it was 
+        # written in columns and now we read in rows.
+        # But usually, 'Columnar Transposition' means:
+        # Write in rows, read in columns.
+        # So decryption is: Write in columns, read in rows.
+        
+        # Calculate number of full columns and short columns
+        full_cols = n % w
+        col_len = n // w
+        
+        grid = [''] * n
+        curr = 0
+        for c in range(w):
+            length = col_len + (1 if c < full_cols else 0)
+            for r in range(length):
+                # row r, col c maps to r*w + c in original plaintext
+                # but we are filling the grid from the ciphertext
+                grid[r * w + c] = data[curr]
+                curr += 1
+        return "".join(grid)
+
+    if width:
+        res = decrypt_with_width(int(width))
+        return [(res, score_text(res), f"Columnar (width {width})")]
+
+    results = []
+    for w in range(2, min(9, n // 2 + 1)):
+        res = decrypt_with_width(w)
+        score = score_text(res)
+        if score > -3000:
+            results.append((res, score, f"Columnar (width {w})"))
+            
+    return sorted(results, key=lambda x: x[1], reverse=True)[:3]
