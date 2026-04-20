@@ -1,3 +1,21 @@
+Metadata-Version: 2.4
+Name: universal-decryptor
+Version: 1.0.0
+Summary: A powerful, modular Python-based tool designed to decrypt a wide variety of ciphers.
+Author-email: Lucas <lucas@example.com>
+Project-URL: Homepage, https://github.com/yourusername/Universal-Decryptor
+Project-URL: Bug Tracker, https://github.com/yourusername/Universal-Decryptor/issues
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: colorama==0.4.6
+Requires-Dist: nltk==3.9.1
+Requires-Dist: pyenchant==3.2.2
+Dynamic: license-file
+
 # Universal Decryption Tool
 
 A powerful, modular Python-based tool designed to decrypt a wide variety of ciphers by intelligently identifying encryption methods and producing human-readable results. Whether you're a CTF player, a puzzle enthusiast, or a student of cryptography, this tool offers professional-grade automated and manual decryption capabilities.
