@@ -5,19 +5,41 @@ def is_hex(s):
     return bool(re.fullmatch(r'[0-9A-Fa-f]+', s)) and len(s) % 2 == 0
 
 def xor_decrypt(ciphertext, key=None):
+    # Empty input is the cheapest, most common mistake — flag it clearly.
+    if ciphertext is None or ciphertext == "":
+        return [("Invalid input: ciphertext is empty.", -100000, "XOR (error)")]
+
+    # Decode the ciphertext bytes. Surface a specific error when a key
+    # was provided (i.e. the user is in manual mode) so they know exactly
+    # why the call failed; in brute-force mode (no key), fall back silently.
     try:
-        cipher_bytes = bytes.fromhex(ciphertext) if is_hex(ciphertext) else ciphertext.encode()
-    except ValueError:
+        if is_hex(ciphertext):
+            cipher_bytes = bytes.fromhex(ciphertext)
+        else:
+            cipher_bytes = ciphertext.encode()
+    except ValueError as e:
+        if key is not None:
+            return [(f"Invalid hex input: {e}", -100000, "XOR (error)")]
         cipher_bytes = ciphertext.encode()
 
     if key is not None:
-        key_bytes = key.encode()
-        result = bytearray(c ^ key_bytes[i % len(key_bytes)] for i, c in enumerate(cipher_bytes))
+        # Validate the user-supplied key before doing any work.
+        if not isinstance(key, str) or key == "":
+            return [("Invalid key: XOR key must be a non-empty string.",
+                     -100000, "XOR (error)")]
+        try:
+            key_bytes = key.encode()
+        except (UnicodeEncodeError, AttributeError) as e:
+            return [(f"Invalid key encoding: {e}", -100000, "XOR (error)")]
+
+        result = bytearray(c ^ key_bytes[i % len(key_bytes)]
+                           for i, c in enumerate(cipher_bytes))
+        # `errors='ignore'` never raises, but keep the try for defense-in-depth.
         try:
             decoded = result.decode('utf-8', errors='ignore')
-            return [(decoded, score_text(decoded), f"XOR (key '{key}')")]
-        except Exception:
-            return []
+        except Exception as e:
+            return [(f"XOR decode failed: {e}", -100000, "XOR (error)")]
+        return [(decoded, score_text(decoded), f"XOR (key '{key}')")]
 
     results = []
     common_keys = ['key', 'secret', 'password', 'test', 'code', 'encrypt', 'decrypt', 'flag', 'crypto']
