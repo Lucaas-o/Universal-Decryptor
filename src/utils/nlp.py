@@ -6,6 +6,7 @@ import enchant
 COMMON_WORDS = set()
 DICT = None
 USE_ENCHANT = False
+CUSTOM_WORDS_LOADED = False  # True once a user-supplied list has replaced the default.
 
 def init_nlp():
     global COMMON_WORDS, DICT, USE_ENCHANT
@@ -48,7 +49,12 @@ def is_word(word):
         
     if word in COMMON_WORDS:
         return True
-        
+
+    # When a custom list is loaded, the user opted out of the broader English
+    # dictionary — skip Enchant so scoring reflects only their vocabulary.
+    if CUSTOM_WORDS_LOADED:
+        return False
+
     if USE_ENCHANT and DICT:
         try:
             return DICT.check(word)
@@ -56,3 +62,32 @@ def is_word(word):
             # Silently handle cases where enchant might still fail or error out
             return False
     return False
+
+
+def load_custom_word_list(path):
+    """Replace COMMON_WORDS with one word per line from `path`.
+
+    Returns the number of words loaded (0 on failure). After a successful
+    call, `is_word` will validate only against the user's vocabulary and
+    skip the Enchant English dictionary — this is the point of a custom
+    list (e.g. non-English text, or domain-specific jargon).
+    """
+    global COMMON_WORDS, CUSTOM_WORDS_LOADED
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            words = {line.strip().lower() for line in f if line.strip()}
+    except FileNotFoundError:
+        print(f"{Fore.RED}Word list not found: {path}{Style.RESET_ALL}")
+        return 0
+    except OSError as e:
+        print(f"{Fore.RED}Could not read {path}: {e}{Style.RESET_ALL}")
+        return 0
+
+    if not words:
+        print(f"{Fore.RED}Word list is empty: {path}{Style.RESET_ALL}")
+        return 0
+
+    COMMON_WORDS = words
+    CUSTOM_WORDS_LOADED = True
+    print(f"{Fore.GREEN}Loaded {len(words)} words from {path}.{Style.RESET_ALL}")
+    return len(words)
