@@ -76,13 +76,24 @@ def vigenere_decrypt(ciphertext, key=None):
     return sorted(results, key=lambda x: x[1], reverse=True)
 
 def playfair_decrypt(ciphertext, key):
-    # Basic Playfair implementation
+    """Decrypt a Playfair cipher.
+
+    Builds a 5x5 key square from `key` (J merged into I), splits the
+    ciphertext into digraphs, and applies the inverse of the three
+    Playfair encryption rules (same row -> shift left; same column ->
+    shift up; otherwise -> opposite rectangle corners on the same row).
+    """
+    # Validate key: must contain at least one A-Z letter.
+    if not key or not any(ch.isalpha() for ch in key):
+        return [("Playfair requires a non-empty alphabetic key.",
+                 -100000, f"Playfair (key '{key}')")]
+
     def generate_matrix(key):
         matrix = []
-        seen = set(['J'])
+        seen = {'J'}  # 'J' is merged into 'I' in the standard 25-letter square.
         key = key.upper().replace('J', 'I')
         for char in key:
-            if char not in seen and char.isalpha():
+            if char.isalpha() and char not in seen:
                 seen.add(char)
                 matrix.append(char)
         for char in "ABCDEFGHIKLMNOPQRSTUVWXYZ":
@@ -91,32 +102,29 @@ def playfair_decrypt(ciphertext, key):
                 matrix.append(char)
         return [matrix[i:i+5] for i in range(0, 25, 5)]
 
-    def find_pos(matrix, char):
-        for r, row in enumerate(matrix):
-            for c, val in enumerate(row):
-                if val == char:
-                    return r, c
-        return None
-
+    # Precompute char -> (row, col) lookup; faster and avoids None returns.
     matrix = generate_matrix(key)
-    ciphertext = re.sub(r'[^A-Z]', '', ciphertext.upper().replace('J', 'I'))
-    result = ""
-    for i in range(0, len(ciphertext), 2):
-        if i + 1 >= len(ciphertext): break
-        a, b = ciphertext[i], ciphertext[i+1]
-        r1, c1 = find_pos(matrix, a)
-        r2, c2 = find_pos(matrix, b)
-        
-        if r1 == r2:
-            result += matrix[r1][(c1-1)%5] + matrix[r2][(c2-1)%5]
-        elif c1 == c2:
-            result += matrix[(r1-1)%5][c1] + matrix[(r2-1)%5][c2]
-        else:
-            result += matrix[r1][c2] + matrix[r2][c1]
-    
-    return [(result, score_text(result), f"Playfair (key '{key}')")]
+    positions = {matrix[r][c]: (r, c) for r in range(5) for c in range(5)}
 
-import re # Need re for Playfair substitute
+    cleaned = re.sub(r'[^A-Z]', '', ciphertext.upper().replace('J', 'I'))
+    # Playfair operates on digraphs; pad an odd-length input with 'X'.
+    if len(cleaned) % 2 == 1:
+        cleaned += 'X'
+
+    result = ""
+    for i in range(0, len(cleaned), 2):
+        a, b = cleaned[i], cleaned[i + 1]
+        r1, c1 = positions[a]
+        r2, c2 = positions[b]
+
+        if r1 == r2:                          # Same row: shift left.
+            result += matrix[r1][(c1 - 1) % 5] + matrix[r2][(c2 - 1) % 5]
+        elif c1 == c2:                        # Same column: shift up.
+            result += matrix[(r1 - 1) % 5][c1] + matrix[(r2 - 1) % 5][c2]
+        else:                                 # Rectangle: swap columns.
+            result += matrix[r1][c2] + matrix[r2][c1]
+
+    return [(result, score_text(result), f"Playfair (key '{key}')")]
 
 def hill_decrypt_2x2(ciphertext, a, b, c, d):
     # Hill Cipher 2x2: [[a, b], [c, d]]
